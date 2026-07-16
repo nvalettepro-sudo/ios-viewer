@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <!-- Bloque le zoom natif Safari qui interfère avec le pinch-to-zoom du canvas 3D -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Visualiseur IFC pour iPhone — importez et explorez vos maquettes BIM directement depuis l'app Fichiers." />
+
+  <title>Viewer IFC</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Viewer IFC" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Import map : dépendances vendorisées localement (aucune dépendance CDN
+       à l'exécution → offline fiable). Versions au build : three 0.185.1, web-ifc 0.0.77 -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- Zone de rendu 3D -->
+  <canvas id="viewport" touch-action="none"></canvas>
+
+  <!-- Barre d'outils supérieure -->
+  <header id="toolbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◧</span>
+      <span class="brand-name">Viewer IFC</span>
+    </div>
+    <div class="actions">
+      <button id="btn-open" class="btn btn-primary" type="button">Importer un IFC</button>
+      <button id="btn-fit" class="btn" type="button" disabled title="Recentrer la vue">Recentrer</button>
+      <button id="btn-clear" class="btn" type="button" disabled title="Fermer le modèle">Fermer</button>
+    </div>
+    <!-- accept omis volontairement : un filtre MIME grise les .ifc dans l'app Fichiers iOS -->
+    <input id="file-input" type="file" hidden />
+  </header>
+
+  <!-- Écran d'accueil / drop des instructions -->
+  <section id="welcome" class="overlay">
+    <div class="card">
+      <div class="hero">◧</div>
+      <h1>Visualiseur IFC</h1>
+      <p>Importez un fichier <code>.ifc</code> ou <code>.ifczip</code> depuis l'app <strong>Fichiers</strong> de votre iPhone (iCloud Drive inclus).</p>
+      <button id="btn-open-2" class="btn btn-primary btn-lg" type="button">Choisir un fichier</button>
+      <ul class="tips">
+        <li>👆 Un doigt : faire pivoter la maquette</li>
+        <li>🤏 Deux doigts : zoomer / dézoomer</li>
+        <li>✋ Deux doigts glissés : déplacer la vue</li>
+      </ul>
+      <p class="hint">Astuce : « Partager » → « Sur l'écran d'accueil » pour installer l'app.</p>
+    </div>
+  </section>
+
+  <!-- Overlay de chargement -->
+  <section id="loading" class="overlay hidden">
+    <div class="card">
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="loading-title">Chargement…</h2>
+      <p id="loading-detail" class="muted">Préparation du moteur IFC…</p>
+      <div class="progress"><div id="progress-bar"></div></div>
+    </div>
+  </section>
+
+  <!-- Avertissement gros fichier -->
+  <section id="warn" class="overlay hidden">
+    <div class="card">
+      <div class="hero warn">⚠️</div>
+      <h2>Fichier volumineux</h2>
+      <p id="warn-text" class="muted"></p>
+      <p class="muted small">Safari sur iPhone limite fortement la mémoire disponible. Au-delà de ~50 Mo, le chargement peut faire planter la page silencieusement.</p>
+      <div class="row">
+        <button id="warn-cancel" class="btn" type="button">Annuler</button>
+        <button id="warn-continue" class="btn btn-primary" type="button">Charger quand même</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Panneau d'infos / erreurs -->
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <!-- Barre d'état inférieure -->
+  <footer id="statusbar" class="hidden">
+    <span id="stat-name">—</span>
+    <span id="stat-meta" class="muted"></span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
