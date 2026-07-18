@@ -1,8 +1,13 @@
 // ============================================================================
-//  service-worker.js — Cache offline (app shell + dépendances CDN).
+//  service-worker.js — Cache offline (app shell + dépendances vendorisées).
+//  Stratégie :
+//   - Code de l'app (HTML, CSS, JS) : RÉSEAU d'abord → les mises à jour
+//     arrivent immédiatement quand on est en ligne ; repli cache si offline.
+//   - Grosses libs vendor/ + wasm + icônes : CACHE d'abord (rapide, offline,
+//     elles changent rarement).
 //  Après le 1er chargement en ligne, l'app fonctionne hors connexion.
 // ============================================================================
-const CACHE = 'ifc-viewer-v2';
+const CACHE = 'ifc-viewer-v3';
 
 // Coquille locale à pré-cacher lors de l'installation.
 // web-ifc-api.js (~5,9 Mo) et web-ifc.wasm (~1,3 Mo) sont vendorisés : chargés
@@ -37,36 +42,51 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Le code de l'app doit se rafraîchir dès qu'on est en ligne (sinon la PWA
+// installée reste bloquée sur une ancienne version en cache).
+function isAppCode(url) {
+  return url.pathname.endsWith('.html')
+      || url.pathname.endsWith('/')
+      || url.pathname.includes('/js/')
+      || url.pathname.includes('/css/')
+      || url.pathname.endsWith('manifest.webmanifest');
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
+  if (!sameOrigin) return;
 
-  // Navigations : réseau d'abord, repli sur l'index en cache (offline).
-  if (req.mode === 'navigate') {
+  // Navigations + code de l'app : RÉSEAU d'abord, repli cache si hors ligne.
+  if (req.mode === 'navigate' || isAppCode(url)) {
     event.respondWith(
-      fetch(req).catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  // Assets locaux (dont /vendor/ volumineux) : cache d'abord, puis réseau
-  // (et on met en cache au passage pour les prochaines ouvertures offline).
-  if (sameOrigin) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req).then((res) => {
-          // On ne met en cache que les réponses exploitables.
-          if (res && (res.ok || res.type === 'opaque')) {
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
           }
           return res;
-        });
-      })
+        })
+        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
     );
+    return;
   }
+
+  // Reste (vendor/, wasm, icônes) : CACHE d'abord, puis réseau (mise en cache).
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res && (res.ok || res.type === 'opaque')) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      });
+    })
+  );
 });
