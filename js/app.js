@@ -82,8 +82,9 @@ function buildModel(meshes) {
   disposeModel();
 
   modelGroup = new THREE.Group();
-  // IFC est Z-up ; Three est Y-up. Rotation pour orienter le bâtiment vers le haut.
-  modelGroup.rotation.x = -Math.PI / 2;
+  // web-ifc renvoie déjà la géométrie en Y-up (comme Three.js) : il applique
+  // lui-même la conversion depuis le Z-up de l'IFC. On n'ajoute donc AUCUNE
+  // rotation ici — en rajouter une couchait le modèle sur le côté.
 
   for (const m of meshes) {
     const geo = new THREE.BufferGeometry();
