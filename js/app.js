@@ -7,10 +7,32 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Numéro de version affiché en haut à gauche (permet de vérifier quelle
 // version est réellement chargée, notamment après un cache PWA). À incrémenter
 // à chaque changement visible ; garder en phase avec le cache du service worker.
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 
-// Seuil d'avertissement mémoire (voir contraintes iOS du brief).
+// Seuil d'avertissement mémoire par défaut (voir contraintes iOS du brief).
+// Le seuil réel s'ajuste ensuite à l'appareil grâce à ce que MEM a appris.
 const WARN_SIZE_MB = 50;
+
+// -- Apprentissage du plafond mémoire de l'appareil ---------------------------
+// Safari tue la page sans exception JS quand la mémoire déborde. On ne peut pas
+// l'intercepter, mais on peut le DÉTECTER après coup : on pose un drapeau avant
+// chaque chargement et on le lève seulement après un rendu réussi. Si au
+// démarrage suivant le drapeau est encore là, c'est qu'un plantage silencieux a
+// eu lieu. On mémorise aussi la plus grosse maquette réellement affichée.
+const MEM = {
+  _get(k) { try { const v = parseFloat(localStorage.getItem(k)); return isNaN(v) ? null : v; } catch { return null; } },
+  _set(k, v) { try { localStorage.setItem(k, String(v)); } catch { /* privé/indispo */ } },
+  setPending(name, sizeMB) { try { localStorage.setItem('ifcv-pending', JSON.stringify({ name, sizeMB, t: Date.now() })); } catch {} },
+  clearPending() { try { localStorage.removeItem('ifcv-pending'); } catch {} },
+  readPending() { try { return JSON.parse(localStorage.getItem('ifcv-pending') || 'null'); } catch { return null; } },
+  recordSuccess(sizeMB) { const cur = MEM._get('ifcv-maxok') || 0; if (sizeMB > cur) MEM._set('ifcv-maxok', Math.round(sizeMB)); },
+  recordCrash(sizeMB) { const cur = MEM._get('ifcv-crash'); if (cur == null || sizeMB < cur) MEM._set('ifcv-crash', Math.round(sizeMB)); },
+  maxOk() { return MEM._get('ifcv-maxok'); },
+  crashAt() { return MEM._get('ifcv-crash'); },
+};
+
+// Détails du chargement en cours (pour créditer le succès à la bonne taille).
+let currentLoad = null;
 
 // -- Éléments DOM -------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
@@ -171,12 +193,14 @@ function getWorker() {
     } else if (d.type === 'done') {
       onParsed(d);
     } else if (d.type === 'error') {
+      MEM.clearPending(); // erreur gérée = pas un plantage mémoire
       hideAll();
       showToast('Erreur : ' + d.message, true);
       updateActions();
     }
   };
   worker.onerror = (e) => {
+    MEM.clearPending();
     hideAll();
     showToast('Erreur du moteur IFC : ' + (e.message || 'inconnue'), true);
   };
@@ -194,7 +218,17 @@ function onParsed(d) {
     hideAll();
     updateActions();
     if (s.groups === 0) showToast('Aucune géométrie affichable dans ce fichier.', true);
+
+    // On ne lève le drapeau anti-plantage qu'après DEUX frames rendues : l'upload
+    // GPU de la géométrie est le 2e pic mémoire. Si la page plante pendant, le
+    // drapeau reste posé et le plantage sera détecté au prochain démarrage.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      MEM.clearPending();
+      if (currentLoad) MEM.recordSuccess(currentLoad.sizeMB);
+      updateDeviceNote();
+    }));
   } catch (err) {
+    MEM.clearPending();
     hideAll();
     showToast('Erreur d\'affichage : ' + err.message, true);
   }
@@ -209,9 +243,21 @@ function handleFile(file) {
     return;
   }
   const sizeMB = file.size / (1024 * 1024);
-  if (sizeMB > WARN_SIZE_MB) {
-    $('warn-text').textContent =
-      `Ce fichier fait ${sizeMB.toFixed(0)} Mo. Le seuil fiable sur iPhone est d'environ ${WARN_SIZE_MB} Mo.`;
+  const maxOk = MEM.maxOk();
+  const crashAt = MEM.crashAt();
+
+  // Déjà chargé aussi gros (ou plus) avec succès sur cet appareil → on fait
+  // confiance et on n'avertit pas.
+  const provenOk = maxOk != null && sizeMB <= maxOk;
+  // Risqué si au-dessus du seuil prudent, ou proche d'une taille qui a déjà planté.
+  const risky = !provenOk && (sizeMB > WARN_SIZE_MB || (crashAt != null && sizeMB >= crashAt * 0.9));
+
+  if (risky) {
+    let txt = `Ce fichier fait ${sizeMB.toFixed(0)} Mo.`;
+    if (crashAt != null) txt += ` Une maquette de ${Math.round(crashAt)} Mo a déjà fait planter l'app sur cet appareil.`;
+    else txt += ` Le seuil prudent est d'environ ${WARN_SIZE_MB} Mo.`;
+    if (maxOk != null) txt += ` Plus gros modèle chargé avec succès ici : ${Math.round(maxOk)} Mo.`;
+    $('warn-text').textContent = txt;
     warn.classList.remove('hidden');
     warn._pending = file;
     return;
@@ -220,6 +266,11 @@ function handleFile(file) {
 }
 
 function startLoad(file) {
+  const sizeMB = file.size / (1024 * 1024);
+  currentLoad = { name: file.name, sizeMB };
+  // Drapeau anti-plantage : posé avant le pic mémoire, levé après un rendu OK.
+  MEM.setPending(file.name, sizeMB);
+
   welcome.classList.add('hidden');
   warn.classList.add('hidden');
   setLoading('Lecture du fichier…', file.name);
@@ -252,12 +303,40 @@ function hideAll() {
   $('progress-bar').style.width = '0%';
 }
 let toastTimer;
-function showToast(msg, isError) {
+function showToast(msg, isError, duration) {
   toast.textContent = msg;
   toast.classList.toggle('error', !!isError);
   toast.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), duration || 5000);
+}
+
+// Note discrète sur l'écran d'accueil : ce que l'app a appris de cet appareil.
+function updateDeviceNote() {
+  const el = $('device-note');
+  if (!el) return;
+  const maxOk = MEM.maxOk();
+  const crashAt = MEM.crashAt();
+  const parts = [];
+  if (maxOk != null) parts.push(`jusqu'à ${maxOk} Mo chargés avec succès`);
+  if (crashAt != null) parts.push(`plantage constaté dès ${crashAt} Mo`);
+  el.textContent = parts.length ? `Sur cet appareil : ${parts.join(' · ')}.` : '';
+}
+
+// Au démarrage : un chargement laissé « en cours » = plantage silencieux passé.
+function checkPreviousCrash() {
+  const p = MEM.readPending();
+  if (!p) return;
+  MEM.clearPending();
+  const age = Date.now() - (p.t || 0);
+  if (age < 5 * 60 * 1000 && p.sizeMB) {
+    MEM.recordCrash(p.sizeMB);
+    updateDeviceNote();
+    showToast(
+      `⚠️ La dernière ouverture de « ${p.name} » (${Math.round(p.sizeMB)} Mo) a fait planter l'app : ` +
+      `cet appareil manque de mémoire pour un fichier de cette taille. Essaie un modèle plus léger.`,
+      true, 12000);
+  }
 }
 function updateActions() {
   btnFit.disabled = !hasModel;
@@ -310,3 +389,5 @@ $('build-tag').textContent = APP_VERSION;
 initThree();
 blockNativeGestures();
 updateActions();
+updateDeviceNote();
+checkPreviousCrash();

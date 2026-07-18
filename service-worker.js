@@ -7,7 +7,7 @@
 //     elles changent rarement).
 //  Après le 1er chargement en ligne, l'app fonctionne hors connexion.
 // ============================================================================
-const CACHE = 'ifc-viewer-v3';
+const CACHE = 'ifc-viewer-v4';
 
 // Coquille locale à pré-cacher lors de l'installation.
 // web-ifc-api.js (~5,9 Mo) et web-ifc.wasm (~1,3 Mo) sont vendorisés : chargés

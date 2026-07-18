@@ -69,6 +69,13 @@ icons/                icon-192/512, maskable, apple-touch-icon (cube isométriqu
 2. **Seuils de taille** : < 20 Mo fiable partout ; 20–50 Mo OK sur iPhone récent ;
    **> 50 Mo → avertissement** avant tentative (voir `WARN_SIZE_MB` dans app.js).
    Au-delà, la vraie solution est la conversion Fragments (Phase 2, non faite).
+   - **Plafond adaptatif** (objet `MEM` dans app.js) : comme le plantage mémoire
+     iOS est silencieux (pas d'exception JS), on pose un drapeau `ifcv-pending`
+     en localStorage avant chaque chargement et on le lève après 2 frames rendues.
+     Un drapeau retrouvé au démarrage = plantage passé → on l'affiche et on retient
+     la taille (`ifcv-crash`). On mémorise aussi la plus grosse maquette affichée
+     (`ifcv-maxok`) pour ne plus avertir en dessous. L'avertissement devient donc
+     propre à l'appareil, pas un seuil fixe.
 3. **Import de fichiers** : l'`<input type="file">` **n'a pas d'attribut `accept`**
    (un filtre MIME grise les `.ifc` dans Fichiers iOS). On filtre l'extension en JS.
    Pas de File System Access API ni de « Ouvrir avec » sur iOS : import manuel.
