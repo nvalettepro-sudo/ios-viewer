@@ -4,6 +4,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// Numéro de version affiché en haut à gauche (permet de vérifier quelle
+// version est réellement chargée, notamment après un cache PWA). À incrémenter
+// à chaque changement visible ; garder en phase avec le cache du service worker.
+const APP_VERSION = 'v3';
+
 // Seuil d'avertissement mémoire (voir contraintes iOS du brief).
 const WARN_SIZE_MB = 50;
 
@@ -301,6 +306,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // -- Démarrage ----------------------------------------------------------------
+$('build-tag').textContent = APP_VERSION;
 initThree();
 blockNativeGestures();
 updateActions();
