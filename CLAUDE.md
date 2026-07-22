@@ -13,6 +13,22 @@ d'iOS et explore la maquette en 3D au doigt.
 Public : architecte / BIM Manager **non-développeur**. Toute consigne Git ou
 déploiement doit être expliquée pas à pas, sans jargon non défini.
 
+## Appareils cibles de l'utilisateur (référence pour le calibrage mémoire)
+
+Nicolas Valette teste sur deux appareils (relevés en juillet 2026) :
+
+| Appareil | Puce | RAM | OS |
+|---|---|---|---|
+| iPhone 14 | A15 Bionic | **6 Go** | iOS 26.5.2 |
+| iPad (10ᵉ génération) | A14 Bionic | **4 Go** | iPadOS 26.5.2 |
+
+⚠️ **L'iPad 10ᵉ gén. (4 Go) est l'appareil le plus contraint en mémoire**, pas
+l'iPhone — c'est donc lui le plafond dimensionnant. Calibrer les défauts et toute
+Phase 2 (Fragments) pour tenir dans ~4 Go de RAM (Safari tue le process bien
+avant, souvent vers ~1–1,5 Go de contenu web). Ne pas supposer « iPad = plus de
+mémoire que l'iPhone ». La détection fine se fait de toute façon à l'exécution
+via l'apprentissage `MEM` (localStorage), Safari n'exposant pas la RAM.
+
 ## Stack (versions figées au build, à revérifier avant toute mise à jour)
 
 - **Parsing IFC** : `web-ifc` 0.0.77 (gère IFC2x3 **et** IFC4.x). Dépôt amont :
@@ -69,6 +85,13 @@ icons/                icon-192/512, maskable, apple-touch-icon (cube isométriqu
 2. **Seuils de taille** : < 20 Mo fiable partout ; 20–50 Mo OK sur iPhone récent ;
    **> 50 Mo → avertissement** avant tentative (voir `WARN_SIZE_MB` dans app.js).
    Au-delà, la vraie solution est la conversion Fragments (Phase 2, non faite).
+   - **Plafond adaptatif** (objet `MEM` dans app.js) : comme le plantage mémoire
+     iOS est silencieux (pas d'exception JS), on pose un drapeau `ifcv-pending`
+     en localStorage avant chaque chargement et on le lève après 2 frames rendues.
+     Un drapeau retrouvé au démarrage = plantage passé → on l'affiche et on retient
+     la taille (`ifcv-crash`). On mémorise aussi la plus grosse maquette affichée
+     (`ifcv-maxok`) pour ne plus avertir en dessous. L'avertissement devient donc
+     propre à l'appareil, pas un seuil fixe.
 3. **Import de fichiers** : l'`<input type="file">` **n'a pas d'attribut `accept`**
    (un filtre MIME grise les `.ifc` dans Fichiers iOS). On filtre l'extension en JS.
    Pas de File System Access API ni de « Ouvrir avec » sur iOS : import manuel.

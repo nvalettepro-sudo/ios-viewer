@@ -42,6 +42,7 @@
     </div>
     <div class="actions">
       <button id="btn-open" class="btn btn-primary" type="button">Importer un IFC</button>
+      <button id="btn-panel" class="btn" type="button" disabled title="Panneau (étages, catégories, vues)">☰ Panneau</button>
       <button id="btn-fit" class="btn" type="button" disabled title="Recentrer la vue">Recentrer</button>
       <button id="btn-clear" class="btn" type="button" disabled title="Fermer le modèle">Fermer</button>
     </div>
@@ -62,6 +63,7 @@
         <li>✋ Deux doigts glissés : déplacer la vue</li>
       </ul>
       <p class="hint">Astuce : « Partager » → « Sur l'écran d'accueil » pour installer l'app.</p>
+      <p class="hint" id="device-note"></p>
     </div>
   </section>
 
@@ -88,6 +90,58 @@
       </div>
     </div>
   </section>
+
+  <!-- Panneau latéral : vues, colorisation, arborescence étages/catégories -->
+  <aside id="panel">
+    <div class="panel-head">
+      <span>Maquette</span>
+      <button id="panel-close" class="icon-btn" type="button" aria-label="Fermer le panneau">✕</button>
+    </div>
+    <div class="panel-body">
+      <section class="pnl-sec">
+        <h3>Vues</h3>
+        <div class="btn-row">
+          <button class="chip viewbtn" data-view="iso" type="button">Iso</button>
+          <button class="chip viewbtn" data-view="top" type="button">Dessus</button>
+          <button class="chip viewbtn" data-view="front" type="button">Face</button>
+          <button class="chip viewbtn" data-view="side" type="button">Côté</button>
+          <button class="chip" id="btn-fullscreen" type="button">Plein écran</button>
+        </div>
+      </section>
+
+      <section class="pnl-sec">
+        <h3>Colorer par</h3>
+        <div class="btn-row">
+          <button class="chip cmode active" data-mode="category" type="button">Catégorie</button>
+          <button class="chip cmode" data-mode="storey" type="button">Étage</button>
+          <button class="chip cmode" data-mode="original" type="button">Origine</button>
+        </div>
+      </section>
+
+      <section class="pnl-sec">
+        <h3>Étages</h3>
+        <div id="tree-storeys" class="tree"></div>
+      </section>
+
+      <section class="pnl-sec">
+        <h3>Catégories</h3>
+        <div id="tree-cats" class="tree"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Fiche propriétés de l'élément sélectionné -->
+  <aside id="props" class="hidden">
+    <div class="prop-head">
+      <div class="prop-titles">
+        <div id="prop-title" class="prop-title">—</div>
+        <div id="prop-sub" class="prop-sub muted"></div>
+        <div id="prop-id" class="prop-id muted"></div>
+      </div>
+      <button id="prop-close" class="icon-btn" type="button" aria-label="Désélectionner">✕</button>
+    </div>
+    <div id="prop-sets" class="prop-sets"></div>
+  </aside>
 
   <!-- Panneau d'infos / erreurs -->
   <div id="toast" class="toast hidden" role="status"></div>
